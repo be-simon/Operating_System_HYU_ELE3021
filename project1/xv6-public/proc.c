@@ -112,6 +112,12 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+	p->qlev = 0;
+	p->qticks = 0;
+	p->schedtick = 0;
+	p->tickets = 0;
+	p->pass = 0;
+
   return p;
 }
 
