@@ -12,6 +12,11 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+extern struct scheduler mlfqsched;
+extern struct scheduler stridesched;
+uint mlfqticks = 0;
+struct proc *lastproc = 0;
+
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -114,7 +119,6 @@ found:
 
 	p->qlev = 0;
 	p->qticks = 0;
-	p->schedtick = 0;
 	p->tickets = 0;
 	p->pass = 0;
 
@@ -155,6 +159,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+	mlfq_enqueue(p);
 
   release(&ptable.lock);
 }
@@ -221,6 +226,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+	mlfq_enqueue(np);
 
   release(&ptable.lock);
 
@@ -328,34 +334,99 @@ wait(void)
 void
 scheduler(void)
 {
-  struct proc *p;
+  struct proc *p = 0;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+
+	int tq = 0;
+ 	int ta = 0;
+	int i;
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+		// Loop over process table looking for process to run.
+		acquire(&ptable.lock);
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+		if (mlfqticks > 0 && mlfqticks % PRIORITYBOOST == 0) {
+			for (i = 1; i <= NPROC; i++) {
+				if (mlfqsched.heap[i]->state != RUNNABLE)
+					continue;
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+				mlfqsched.heap[i]->qlev = 0;
+				mlfqsched.heap[i]->qticks = 0;
+				lastproc = 0;
+			}
+		}
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
-    }
+		while (!p) {
+			p = mlfq_dequeue();
+			if (lastproc) {
+				if (lastproc->pid != p->pid) {
+					mlfq_enqueue(p);
+					continue;
+				}
+
+				//check time quantum
+				if(lastproc->qticks > 0 && lastproc->qticks % tq == 0) {
+					lastproc = 0;
+					mlfq_enqueue(p);
+					p = 0;
+					continue;
+				}
+				
+				//check time allotment
+				if (lastproc->qlev < 2 && lastproc->qticks > 0 && lastproc->qticks % ta == 0) {
+					lastproc->qlev++;
+					lastproc->qticks = 0;
+					lastproc = 0;
+					mlfq_enqueue(p);
+					p = 0;
+					continue;
+				}
+
+				p = lastproc;
+
+			} else {// choose next
+				if (p->state == ZOMBIE || p->state == UNUSED) {
+					p = 0;
+					continue;
+				}
+				switch (p->qlev) {
+						case 0:
+							tq = TQHIGH;
+							ta = TAHIGH;
+							break;
+						case 1:
+							tq = TQMIDDLE;
+							ta = TAMIDDLE;
+							break;
+						case 2:
+							tq = TQLOW;
+							break;
+					}
+
+				lastproc = p;
+				mlfq_enqueue(p);
+			}
+		}
+
+		// Switch to chosen process.  It is the process's job
+		// to release ptable.lock and then reacquire it
+		// before jumping back to us.
+		c->proc = p;
+		switchuvm(p);
+		p->state = RUNNING;
+
+		swtch(&(c->scheduler), p->context);
+		switchkvm();
+
+		// Process is done running for now.
+		// It should have changed its p->state before coming back.
+		c->proc = 0;
+		p = 0;
+
     release(&ptable.lock);
 
   }

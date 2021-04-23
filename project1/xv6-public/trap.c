@@ -14,6 +14,9 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
+extern uint mlfqticks;
+extern struct proc *lastproc;
+
 void
 tvinit(void)
 {
@@ -51,6 +54,11 @@ trap(struct trapframe *tf)
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
+			//mlfq proc
+			if (lastproc && lastproc->tickets == 0){
+				lastproc->qticks++;
+				mlfqticks++;
+			}
       wakeup(&ticks);
       release(&tickslock);
     }

@@ -50,16 +50,22 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-	//mlfq
 	int qlev;
 	int qticks;
-	int schedtick;
+	
+	int tickets;
+	int srtide;
+	int pass;
+};
 
-	//stride
+struct scheduler {
+	struct proc *heap[NPROC+1];
+	int count;
 	int tickets;
 	int stride;
 	int pass;
 };
+
 
 // Process memory is laid out contiguously, low addresses first:
 //   text

@@ -12,3 +12,11 @@
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE       1000  // size of file system in blocks
 
+#define TQHIGH				1
+#define TQMIDDLE			2
+#define TQLOW					4
+#define TAHIGH				5
+#define TAMIDDLE			10
+#define PRIORITYBOOST	100
+
+#define TOTALTICKETS	10000

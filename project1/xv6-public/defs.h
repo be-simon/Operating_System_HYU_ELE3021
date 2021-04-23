@@ -186,5 +186,10 @@ void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
 
+// scheduler.c
+int							set_cpu_share(int);
+int							mlfq_enqueue(struct proc*);
+struct proc*		mlfq_dequeue(void);
+
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
