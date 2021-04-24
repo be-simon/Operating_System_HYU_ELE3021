@@ -15,7 +15,6 @@ struct spinlock tickslock;
 uint ticks;
 
 extern uint mlfqticks;
-extern struct proc *lastproc;
 
 void
 tvinit(void)
@@ -39,6 +38,8 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
+	int tq = TQHIGH, ta = TAHIGH;
+
   if(tf->trapno == T_SYSCALL){
     if(myproc()->killed)
       exit();
@@ -54,11 +55,6 @@ trap(struct trapframe *tf)
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
-			//mlfq proc
-			if (lastproc && lastproc->tickets == 0){
-				lastproc->qticks++;
-				mlfqticks++;
-			}
       wakeup(&ticks);
       release(&tickslock);
     }
@@ -110,10 +106,38 @@ trap(struct trapframe *tf)
 
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
-  if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER)
-    yield();
+	if(myproc() && myproc()->state == RUNNING &&
+			tf->trapno == T_IRQ0+IRQ_TIMER){
+		//mlfq proc
+		if (myproc()->tickets == 0){
+			myproc()->qticks++;
+			mlfqticks++;
 
+			switch(myproc()->qlev){
+				case 0:
+					tq = TQHIGH;
+					ta = TAHIGH;
+					break;
+				case 1:
+					tq = TQMIDDLE;
+					ta = TAMIDDLE;
+					break;
+				case 2:
+					tq = TQLOW;
+					break;
+			}
+			if (myproc()->qlev < 2 && myproc()->qticks % ta == 0){
+				myproc()->qlev++;
+				myproc()->qticks = 0;
+				yield();
+			} else if (myproc()->qticks > 0 && myproc()->qticks % tq == 0)
+				yield();
+
+			if (mlfqticks > 0 && mlfqticks % PRIORITYBOOST == 0)
+				priority_boost();
+		} else 
+			yield();
+	}
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();

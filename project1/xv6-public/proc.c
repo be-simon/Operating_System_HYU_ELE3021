@@ -15,7 +15,6 @@ struct {
 extern struct scheduler mlfqsched;
 extern struct scheduler stridesched;
 uint mlfqticks = 0;
-struct proc *lastproc = 0;
 
 static struct proc *initproc;
 
@@ -338,10 +337,6 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
 
-	int tq = 0;
- 	int ta = 0;
-	int i;
-
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -349,67 +344,11 @@ scheduler(void)
 		// Loop over process table looking for process to run.
 		acquire(&ptable.lock);
 
-		if (mlfqticks > 0 && mlfqticks % PRIORITYBOOST == 0) {
-			for (i = 1; i <= NPROC; i++) {
-				if (mlfqsched.heap[i]->state != RUNNABLE)
-					continue;
-
-				mlfqsched.heap[i]->qlev = 0;
-				mlfqsched.heap[i]->qticks = 0;
-				lastproc = 0;
-			}
-		}
-
-		while (!p) {
+		// choose next
+		while (!p || p->state != RUNNABLE) {
 			p = mlfq_dequeue();
-			if (lastproc) {
-				if (lastproc->pid != p->pid) {
-					mlfq_enqueue(p);
-					continue;
-				}
-
-				//check time quantum
-				if(lastproc->qticks > 0 && lastproc->qticks % tq == 0) {
-					lastproc = 0;
-					mlfq_enqueue(p);
-					p = 0;
-					continue;
-				}
-				
-				//check time allotment
-				if (lastproc->qlev < 2 && lastproc->qticks > 0 && lastproc->qticks % ta == 0) {
-					lastproc->qlev++;
-					lastproc->qticks = 0;
-					lastproc = 0;
-					mlfq_enqueue(p);
-					p = 0;
-					continue;
-				}
-
-				p = lastproc;
-
-			} else {// choose next
-				if (p->state == ZOMBIE || p->state == UNUSED) {
-					p = 0;
-					continue;
-				}
-				switch (p->qlev) {
-						case 0:
-							tq = TQHIGH;
-							ta = TAHIGH;
-							break;
-						case 1:
-							tq = TQMIDDLE;
-							ta = TAMIDDLE;
-							break;
-						case 2:
-							tq = TQLOW;
-							break;
-					}
-
-				lastproc = p;
+			if (p->state == SLEEPING)
 				mlfq_enqueue(p);
-			}
 		}
 
 		// Switch to chosen process.  It is the process's job
@@ -422,6 +361,9 @@ scheduler(void)
 		swtch(&(c->scheduler), p->context);
 		switchkvm();
 
+		mlfq_enqueue(p);
+
+
 		// Process is done running for now.
 		// It should have changed its p->state before coming back.
 		c->proc = 0;
@@ -430,6 +372,15 @@ scheduler(void)
     release(&ptable.lock);
 
   }
+}
+
+void
+priority_boost(void){
+	int i;
+	for (i = 1; i <= NPROC; i++) {
+		mlfqsched.heap[i]->qlev = 0;
+		mlfqsched.heap[i]->qticks = 0;
+	}
 }
 
 // Enter scheduler.  Must hold only ptable.lock

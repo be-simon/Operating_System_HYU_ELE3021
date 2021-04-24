@@ -54,7 +54,7 @@ mlfq_dequeue(void) {
 			child = (mlfqsched.heap[child]->qlev < mlfqsched.heap[child + 1]->qlev) ? child : child + 1;
 		}
 
-		if (end->qlev > mlfqsched.heap[child]->qlev) {
+		if (end->qlev >= mlfqsched.heap[child]->qlev) {
 			mlfqsched.heap[parent] = mlfqsched.heap[child];
 			parent = child;
 			child = parent * 2;
@@ -62,8 +62,8 @@ mlfq_dequeue(void) {
 			break;
 	}
 
-	if (parent > 1)
-		mlfqsched.heap[parent] = p;
+	if (mlfqsched.count > 0)
+		mlfqsched.heap[parent] = end;
 
 	return p;
 }
