@@ -135,8 +135,10 @@ trap(struct trapframe *tf)
 
 			if (mlfqticks > 0 && mlfqticks % PRIORITYBOOST == 0)
 				priority_boost();
-		} else 
+		} else { 
+			myproc()->pass += myproc()->stride;
 			yield();
+		}
 	}
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)

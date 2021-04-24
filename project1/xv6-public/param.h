@@ -20,3 +20,4 @@
 #define PRIORITYBOOST	100
 
 #define TOTALTICKETS	10000
+#define MAXSHARE			80

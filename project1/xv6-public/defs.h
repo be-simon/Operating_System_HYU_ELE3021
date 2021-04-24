@@ -191,6 +191,8 @@ void            clearpteu(pde_t *pgdir, char *uva);
 int							set_cpu_share(int);
 int							mlfq_enqueue(struct proc*);
 struct proc*		mlfq_dequeue(void);
+int							stride_enqueue(struct proc*);
+struct proc* 		stride_dequeue(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

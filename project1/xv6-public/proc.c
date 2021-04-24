@@ -337,40 +337,68 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
 
-  for(;;){
-    // Enable interrupts on this processor.
-    sti();
+	for(;;){
+		// Enable interrupts on this processor.
+		sti();
 
 		// Loop over process table looking for process to run.
 		acquire(&ptable.lock);
 
-		// choose next
-		while (!p || p->state != RUNNABLE) {
+		if (mlfqsched.pass <= stridesched.pass || stridesched.stride == 0){
+			// choose next
+		//	while (!p || p->state != RUNNABLE) {
+		//		p = mlfq_dequeue();
+		//		if (p->state == SLEEPING)
+		//			mlfq_enqueue(p);
+		//	}
 			p = mlfq_dequeue();
-			if (p->state == SLEEPING)
+			if (p->state == SLEEPING) {
+				p->qlev = 2;
+				p->qticks = 0;
 				mlfq_enqueue(p);
+				release(&ptable.lock);
+				continue;
+			} else if (!p || p->state != RUNNABLE) {
+				release(&ptable.lock);
+				continue;
+			}
+
+			c->proc = p;
+			switchuvm(p);
+			p->state = RUNNING;
+
+			swtch(&(c->scheduler), p->context);
+			switchkvm();
+
+			mlfq_enqueue(p);
+			mlfqsched.pass += mlfqsched.stride;
+
+			c->proc = 0;
+			p = 0;
+
+			release(&ptable.lock);
+
+		} else {
+			while(!p || p->state != RUNNABLE){
+				p = stride_dequeue();
+				if (p->state == SLEEPING)
+					stride_enqueue(p);
+			}
+			c->proc = p;
+			switchuvm(p);
+			p->state = RUNNING;
+
+			swtch(&(c->scheduler), p->context);
+			switchkvm();
+
+			stride_enqueue(p);
+			stridesched.pass += stridesched.stride;
+
+			c->proc = 0;
+			p = 0;
+
+			release(&ptable.lock);
 		}
-
-		// Switch to chosen process.  It is the process's job
-		// to release ptable.lock and then reacquire it
-		// before jumping back to us.
-		c->proc = p;
-		switchuvm(p);
-		p->state = RUNNING;
-
-		swtch(&(c->scheduler), p->context);
-		switchkvm();
-
-		mlfq_enqueue(p);
-
-
-		// Process is done running for now.
-		// It should have changed its p->state before coming back.
-		c->proc = 0;
-		p = 0;
-
-    release(&ptable.lock);
-
   }
 }
 

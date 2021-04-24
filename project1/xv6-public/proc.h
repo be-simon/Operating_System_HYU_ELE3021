@@ -54,7 +54,7 @@ struct proc {
 	int qticks;
 	
 	int tickets;
-	int srtide;
+	int stride;
 	int pass;
 };
 

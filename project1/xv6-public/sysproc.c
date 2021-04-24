@@ -109,6 +109,5 @@ sys_set_cpu_share(void)
 	if (argint(0, &share) < 0)
 		return -1;
 
-//	return set_cpu_share(share);
-	return 0;
+	return set_cpu_share(share);
 }

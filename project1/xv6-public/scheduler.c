@@ -4,12 +4,38 @@
 #include "mmu.h"
 #include "proc.h"
 
-struct scheduler mlfqsched = {{0, }, 0, TOTALTICKETS, 0, 0};
+struct scheduler mlfqsched = {{0, }, 0, TOTALTICKETS, 1, 0};
 struct scheduler stridesched = {{0, }, 0, 0, 0, 0};
 
-//int
-//set_cpu_share(int share){
-//}
+int
+set_cpu_share(int share){
+	struct proc *p;
+	int tickets = TOTALTICKETS * share / 100;
+	if (stridesched.tickets + tickets > TOTALTICKETS * MAXSHARE / 100)
+		return -1;
+
+	mlfqsched.tickets -= tickets;
+	stridesched.tickets += tickets;
+
+	if (stridesched.stride == 0)
+		stridesched.pass = mlfqsched.pass;
+
+	mlfqsched.stride = TOTALTICKETS / mlfqsched.tickets;
+	stridesched.stride = TOTALTICKETS / stridesched.tickets;
+
+	myproc()->tickets = tickets;
+	myproc()->stride = stridesched.tickets / tickets;
+	myproc()->pass = stridesched.heap[1]->pass;
+
+	p = mlfq_dequeue();
+	while (p->pid != myproc()->pid){
+		mlfq_enqueue(p);
+	}
+
+	stride_enqueue(p);
+
+	return 0;
+}
 
 int
 mlfq_enqueue(struct proc *p){
@@ -68,13 +94,60 @@ mlfq_dequeue(void) {
 	return p;
 }
 
-//int
-//stride_enqueue(int tickets, int stride, int pass, struct proc *p) {
-//}
+int
+stride_enqueue(struct proc *p){
+	// queue is full
+	if (stridesched.count >= NPROC){
+		return -1;
+	}
 
+	int parent;
+	int child;
+	
+	child = ++stridesched.count;
+	parent = child / 2;
+	
+	while (child > 1) {
+		if (p->pass < stridesched.heap[parent]->pass) {
+			stridesched.heap[child] = stridesched.heap[parent];
+			child = parent;
+			parent = child / 2;
+		} else
+			break;
+	}
+	stridesched.heap[child] = p;
 
+	return 0;
+}
 
-//int
-//stride_dequeue(void) {
-//}
+struct proc*
+stride_dequeue(void) {
+	// heap is empty
+	if (stridesched.count == 0){
+		return 0;
+	}
+
+	struct proc *p = stridesched.heap[1];
+	struct proc *end = stridesched.heap[stridesched.count--];
+	int parent = 1;
+	int child = 2;
+
+	while (child <= stridesched.count) {
+		if (child < stridesched.count) {
+			child = (stridesched.heap[child]->pass < stridesched.heap[child + 1]->pass) ? child : child + 1;
+		}
+
+		if (end->pass >= stridesched.heap[child]->pass) {
+			stridesched.heap[parent] = stridesched.heap[child];
+			parent = child;
+			child = parent * 2;
+		} else 
+			break;
+	}
+
+	if (stridesched.count > 0)
+		stridesched.heap[parent] = end;
+
+	return p;
+}
 
