@@ -54,16 +54,16 @@ struct proc {
 	int qticks;
 	
 	int tickets;
-	int stride;
-	int pass;
+	float stride;
+	float pass;
 };
 
 struct scheduler {
 	struct proc *heap[NPROC+1];
 	int count;
 	int tickets;
-	int stride;
-	int pass;
+	float stride;
+	float pass;
 };
 
 

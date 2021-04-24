@@ -15,6 +15,8 @@ struct spinlock tickslock;
 uint ticks;
 
 extern uint mlfqticks;
+extern struct scheduler mlfqsched;
+extern struct scheduler stridesched;
 
 void
 tvinit(void)
@@ -112,6 +114,7 @@ trap(struct trapframe *tf)
 		if (myproc()->tickets == 0){
 			myproc()->qticks++;
 			mlfqticks++;
+			mlfqsched.pass += mlfqsched.stride;
 
 			switch(myproc()->qlev){
 				case 0:
@@ -137,6 +140,7 @@ trap(struct trapframe *tf)
 				priority_boost();
 		} else { 
 			myproc()->pass += myproc()->stride;
+			stridesched.pass += stridesched.stride;
 			yield();
 		}
 	}

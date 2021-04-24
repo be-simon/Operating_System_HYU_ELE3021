@@ -344,21 +344,14 @@ scheduler(void)
 		// Loop over process table looking for process to run.
 		acquire(&ptable.lock);
 
-		if (mlfqsched.pass <= stridesched.pass || stridesched.stride == 0){
-			// choose next
-		//	while (!p || p->state != RUNNABLE) {
-		//		p = mlfq_dequeue();
-		//		if (p->state == SLEEPING)
-		//			mlfq_enqueue(p);
-		//	}
+		if (mlfqsched.pass <= stridesched.pass || stridesched.count == 0){
 			p = mlfq_dequeue();
-			if (p->state == SLEEPING) {
-				p->qlev = 2;
-				p->qticks = 0;
-				mlfq_enqueue(p);
-				release(&ptable.lock);
-				continue;
-			} else if (!p || p->state != RUNNABLE) {
+			if (!p || p->state != RUNNABLE || p->tickets > 0) {
+				if (p->state == SLEEPING) {
+					p->qlev = 2;
+					p->qticks = 0;
+					mlfq_enqueue(p);
+				}
 				release(&ptable.lock);
 				continue;
 			}
@@ -371,7 +364,6 @@ scheduler(void)
 			switchkvm();
 
 			mlfq_enqueue(p);
-			mlfqsched.pass += mlfqsched.stride;
 
 			c->proc = 0;
 			p = 0;
@@ -379,11 +371,16 @@ scheduler(void)
 			release(&ptable.lock);
 
 		} else {
-			while(!p || p->state != RUNNABLE){
-				p = stride_dequeue();
-				if (p->state == SLEEPING)
+			p = stride_dequeue();
+			if (!p || p->state != RUNNABLE) {
+				if (p->state == SLEEPING) {
+					p->pass = stridesched.heap[stridesched.count]->pass;
 					stride_enqueue(p);
+				}
+				release(&ptable.lock);
+				continue;
 			}
+
 			c->proc = p;
 			switchuvm(p);
 			p->state = RUNNING;
@@ -392,7 +389,6 @@ scheduler(void)
 			switchkvm();
 
 			stride_enqueue(p);
-			stridesched.pass += stridesched.stride;
 
 			c->proc = 0;
 			p = 0;

@@ -9,7 +9,6 @@ struct scheduler stridesched = {{0, }, 0, 0, 0, 0};
 
 int
 set_cpu_share(int share){
-	struct proc *p;
 	int tickets = TOTALTICKETS * share / 100;
 	if (stridesched.tickets + tickets > TOTALTICKETS * MAXSHARE / 100)
 		return -1;
@@ -25,14 +24,14 @@ set_cpu_share(int share){
 
 	myproc()->tickets = tickets;
 	myproc()->stride = stridesched.tickets / tickets;
-	myproc()->pass = stridesched.heap[1]->pass;
+	if (stridesched.count > 0)
+		myproc()->pass = stridesched.heap[1]->pass;
+	else
+		myproc()->pass = 0;
 
-	p = mlfq_dequeue();
-	while (p->pid != myproc()->pid){
-		mlfq_enqueue(p);
-	}
+	//delete from mlfq
 
-	stride_enqueue(p);
+	stride_enqueue(myproc());
 
 	return 0;
 }
