@@ -12,6 +12,8 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+extern struct proc threadtable[NPROC * MAXTHREAD];
+
 extern struct scheduler mlfqsched;
 extern struct scheduler stridesched;
 uint mlfqticks = 0;
@@ -79,7 +81,8 @@ allocproc(void)
 {
   struct proc *p;
   char *sp;
-
+  int i;
+  
   acquire(&ptable.lock);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
@@ -120,6 +123,11 @@ found:
 	p->qticks = 0;
 	p->tickets = 0;
 	p->pass = 0;
+
+	for (i = 0; i < MAXTHREAD; i++) {
+		p->threads[i] = &threadtable[p->pid + i];
+	}	
+
 
   return p;
 }
