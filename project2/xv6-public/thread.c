@@ -13,6 +13,7 @@ extern struct {
 }ptable;
 
 struct proc threadtable[NPROC * MAXTHREAD];
+struct spinlock tlock;
 
 extern int nextpid;
 extern void forkret(void);
@@ -28,6 +29,7 @@ thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
 	uint usp, sz, ustack[2];
 	int i;
 
+	acquire(&tlock);
 	for (i = 0; i < MAXTHREAD; i++) {
 		if (master->threads[i]->state == UNUSED) {
 			new = master->threads[i];
@@ -35,6 +37,7 @@ thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
 			break;
 		}
 	}
+	release(&tlock);
 
 	if (i >= MAXTHREAD) {
 		panic("full thread");
@@ -65,22 +68,26 @@ thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
 	new->context->eip = (uint)forkret;
 	
 	//allocate ustack
-	//sz = PGROUNDUP(master->sz);
+	acquire(&tlock);
 	sz = master->sz;	
 	if((new->sz = allocuvm(master->pgdir, sz, sz + 2 * PGSIZE)) == 0) {
 		panic("thread ustack allocation fail");
+		release(&tlock);
 		return -1;
 	}
 	clearpteu(new->pgdir, (char*)(sz - 2 * PGSIZE));
-	usp = sz;
+	usp = new->sz;
+	master->sz = new->sz;
 
 	usp -= 2 * sizeof(uint);
 	ustack[0] = 0xffffffff;
 	ustack[1] = (uint)arg;
 	if(copyout(new->pgdir, usp, ustack, 2 * sizeof(uint)) < 0) {
 		panic("thread ustack copy fail");
+		release(&tlock);
 		return -1;
 	}
+	release(&tlock);
 
 	*new->tf = *master->tf;
 	new->tf->eip = (uint)start_routine;
@@ -96,6 +103,7 @@ thread_join(thread_t thread, void **retval)
 	struct proc *master = myproc();
 	struct proc *t_join = master->threads[thread];
 	
+	acquire(&tlock);
 	while (t_join->state != ZOMBIE)
 		sleep(master, &ptable.lock);
 
@@ -107,8 +115,11 @@ thread_join(thread_t thread, void **retval)
 	kfree(t_join->kstack);
 	if(deallocuvm(t_join->pgdir, t_join->sz, t_join->sz - 2 * PGSIZE) == 0) {
 		panic("thread ustack deallocation fail");
+		release(&tlock);
 		return -1;
 	}
+
+	release(&tlock);	
 
 	return 0;
 }
