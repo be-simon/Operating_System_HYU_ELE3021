@@ -61,10 +61,13 @@ struct proc {
 
 	// for master thread
 	struct proc *threads[MAXTHREAD];
+	int t_cnt;
+	void *t_retval[MAXTHREAD];
+	uint freeupages[MAXTHREAD];
 
 	//for worker thread
+	int isthread;
 	int tid;
-	void *t_retval;
 };
 
 struct scheduler {

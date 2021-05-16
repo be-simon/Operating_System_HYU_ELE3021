@@ -12,8 +12,6 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
-extern struct proc threadtable[NPROC * MAXTHREAD];
-
 extern struct scheduler mlfqsched;
 extern struct scheduler stridesched;
 uint mlfqticks = 0;
@@ -81,8 +79,8 @@ allocproc(void)
 {
   struct proc *p;
   char *sp;
-  int i;
-  
+	int i;
+ 
   acquire(&ptable.lock);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
@@ -124,10 +122,11 @@ found:
 	p->tickets = 0;
 	p->pass = 0;
 
+	p->t_cnt = 0;
 	for (i = 0; i < MAXTHREAD; i++) {
-		p->threads[i] = &threadtable[p->pid + i];
+		p->threads[i] = 0;
+		p->t_retval[i] = 0;
 	}	
-
 
   return p;
 }
@@ -356,7 +355,7 @@ scheduler(void)
 			p = mlfq_dequeue();
 			if (!p || p->state != RUNNABLE || p->tickets > 0) {
 				if (p->state == SLEEPING) {
-					p->qlev = 2;
+					p->qlev = 3;
 					p->qticks = 0;
 					mlfq_enqueue(p);
 				}
@@ -427,6 +426,7 @@ sched(void)
 {
   int intena;
   struct proc *p = myproc();
+	if (p->isthread)
 
   if(!holding(&ptable.lock))
     panic("sched ptable.lock");
@@ -520,8 +520,10 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+		p->qlev = 0;
+	}
 }
 
 // Wake up all processes sleeping on chan.
