@@ -188,17 +188,19 @@ int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
 
 // scheduler.c
-int							set_cpu_share(int);
-int							mlfq_enqueue(struct proc*);
-struct proc*		mlfq_dequeue(void);
-int							stride_enqueue(struct proc*);
-struct proc* 		stride_dequeue(void);
+int				set_cpu_share(int);
+int				mlfq_enqueue(struct proc*);
+struct proc*	mlfq_dequeue(void);
+int				stride_enqueue(struct proc*);
+struct proc* 	stride_dequeue(void);
+int				mlfq_check_on_timer(struct proc *curproc);
 
 // thread.c
-int 						thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg);
-void						thread_exit(void *retval);
-int 						thread_join(thread_t thread, void **retval);
-
+int 			thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg);
+void			thread_exit(void *retval);
+int 			thread_join(thread_t thread, void **retval);
+struct proc *	get_next_thread(struct proc *master);
+void			run_next_thread(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

@@ -14,7 +14,6 @@ struct {
 
 extern struct scheduler mlfqsched;
 extern struct scheduler stridesched;
-uint mlfqticks = 0;
 
 static struct proc *initproc;
 
@@ -127,6 +126,8 @@ found:
 		p->threads[i] = 0;
 		p->t_retval[i] = 0;
 	}	
+	p->master = p;
+	p->t_lastsched = MAXTHREAD - 1;
 
   return p;
 }
@@ -426,7 +427,7 @@ sched(void)
 {
   int intena;
   struct proc *p = myproc();
-	if (p->isthread)
+	//struct proc *next;
 
   if(!holding(&ptable.lock))
     panic("sched ptable.lock");
@@ -437,7 +438,7 @@ sched(void)
   if(readeflags()&FL_IF)
     panic("sched interruptible");
   intena = mycpu()->intena;
-  swtch(&p->context, mycpu()->scheduler);
+	swtch(&p->context, mycpu()->scheduler);
   mycpu()->intena = intena;
 }
 

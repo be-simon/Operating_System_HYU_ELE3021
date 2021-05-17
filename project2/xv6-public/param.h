@@ -13,12 +13,12 @@
 #define FSSIZE       1000  // size of file system in blocks
 
 // MLFQ
-#define TQHIGH				1
-#define TQMIDDLE			2
-#define TQLOW					4
-#define TAHIGH				5
-#define TAMIDDLE			10
-#define PRIORITYBOOST	100
+#define TQHIGH			5
+#define TQMIDDLE		10
+#define TQLOW			20
+#define TAHIGH			20
+#define TAMIDDLE		40
+#define PRIORITYBOOST	200
 
 // Stride
 #define TOTALTICKETS	10000

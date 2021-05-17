@@ -14,7 +14,6 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
-extern uint mlfqticks;
 extern struct scheduler mlfqsched;
 extern struct scheduler stridesched;
 
@@ -40,8 +39,6 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
-	int tq = TQHIGH, ta = TAHIGH;
-
   if(tf->trapno == T_SYSCALL){
     if(myproc()->killed)
       exit();
@@ -110,35 +107,20 @@ trap(struct trapframe *tf)
   // If interrupts were on while locks held, would need to check nlock.
 	if(myproc() && myproc()->state == RUNNING &&
 			tf->trapno == T_IRQ0+IRQ_TIMER){
-		//mlfq proc
 		if (myproc()->tickets == 0){
-			myproc()->qticks++;
-			mlfqticks++;
-			mlfqsched.pass += mlfqsched.stride;
-
-			switch(myproc()->qlev){
-				case 0:
-					tq = TQHIGH;
-					ta = TAHIGH;
-					break;
-				case 1:
-					tq = TQMIDDLE;
-					ta = TAMIDDLE;
-					break;
-				case 2:
-					tq = TQLOW;
-					break;
-			}
-			if (myproc()->qlev < 2 && myproc()->qticks % ta == 0){
-				myproc()->qlev++;
-				myproc()->qticks = 0;
+			// mlfq process
+			if (myproc()->master->t_cnt > 0)
 				yield();
-			} else if (myproc()->qticks > 0 && myproc()->qticks % tq == 0)
+			else if (mlfq_check_on_timer(myproc()) != 0)
 				yield();
-
-			if (mlfqticks > 0 && mlfqticks % PRIORITYBOOST == 0)
-				priority_boost();
+/*
+			if (mlfq_check_on_timer(myproc()->master) != 0)
+				yield();
+			else if (myproc()->master->t_cnt > 0)
+				run_next_thread();
+*/
 		} else { 
+			// stride process
 			myproc()->pass += myproc()->stride;
 			stridesched.pass += stridesched.stride;
 			yield();

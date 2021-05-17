@@ -81,8 +81,7 @@ found:
 
 	p->isthread = 1;
 	p->pgdir = master->pgdir;
-	p->parent = master;
-
+	p->master = master;
 
   return p;
 }
@@ -135,8 +134,8 @@ t_deallocustack(struct proc *thread)
 		return -1;
 	}
 	for (i = 0; i < MAXTHREAD; i++) {
-		if (thread->parent->freeupages[i] == 0){
-			thread->parent->freeupages[i] = sz;
+		if (thread->master->freeupages[i] == 0){
+			thread->master->freeupages[i] = sz;
 			break;
 		}
 	}	
@@ -212,8 +211,9 @@ thread_join(thread_t thread, void **retval)
 	//retrieve resource
 	*retval = master->t_retval[t_join->tid];
 	master->threads[t_join->tid] = 0;
+	master->t_cnt--;
 	t_join->kstack = 0;
-	t_join->parent = 0;
+	t_join->master = 0;
 	t_join->tid = 0;
 	t_join->killed = 0;
 	t_join->name[0] = 0;
@@ -229,7 +229,7 @@ void
 thread_exit(void *retval)
 {
 	struct proc *curproc = myproc();
-	struct proc *master = curproc->parent;
+	struct proc *master = curproc->master;
 	struct proc *p;
 	int fd;
 
@@ -244,7 +244,6 @@ thread_exit(void *retval)
 	curproc->state = ZOMBIE;
 	//wakeup(master);
 	master->t_retval[curproc->tid] = retval;
-	master->t_cnt--;
 
 	for (p = ptable.proc; p <&ptable.proc[NPROC]; p++) 
 		if (p->state == SLEEPING && p->chan == (void*)master){
@@ -254,4 +253,51 @@ thread_exit(void *retval)
 
 	sched();
 	panic("ZOMBIE thread exit");
+}
+
+struct proc*
+get_next_thread(struct proc *master)
+{
+	int i;
+	struct proc *next = master;
+	if (master->t_cnt == 0)
+		return master;
+
+	i = (master->t_lastsched + 1) % (MAXTHREAD + 1);
+	while (i != master->t_lastsched) {
+		if (i == MAXTHREAD) {
+			if (master->state == RUNNABLE) {
+				next = master;
+				break;
+			}
+		}
+		else if (master->threads[i] != 0 && master->threads[i]->state == RUNNABLE) {
+			next = master->threads[i];
+			break;
+		}
+		i = (i + 1) % (MAXTHREAD + 1);
+	}
+
+	master->t_lastsched = i;
+
+	return next;
+}
+
+void
+run_next_thread()
+{
+	struct proc *curproc = myproc();
+	struct proc *next;
+	int intena;
+
+	next = get_next_thread(curproc->master);
+
+	acquire(&ptable.lock);
+	curproc->state = RUNNABLE;
+	intena = mycpu()->intena;
+
+	swtch(&curproc->context, next->context);
+
+	mycpu()->intena = intena;
+	release(&ptable.lock);
 }

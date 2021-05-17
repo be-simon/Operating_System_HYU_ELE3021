@@ -6,6 +6,7 @@
 
 struct scheduler mlfqsched = {{0, }, 0, TOTALTICKETS, 1, 0};
 struct scheduler stridesched = {{0, }, 0, 0, 0, 0};
+uint mlfqticks = 0;
 
 int
 set_cpu_share(int share){
@@ -148,3 +149,40 @@ stride_dequeue(void) {
 	return p;
 }
 
+int mlfq_check_on_timer(struct proc *curproc){
+	int ta = TAHIGH, tq = TQHIGH;
+
+	curproc->qticks++;
+	mlfqticks++;
+	mlfqsched.pass += mlfqsched.stride;
+
+	// set tq & ta
+	switch(curproc->qlev){
+		case 0:
+			tq = TQHIGH;
+			ta = TAHIGH;
+			break;
+		case 1:
+			tq = TQMIDDLE;
+			ta = TAMIDDLE;
+			break;
+		case 2:
+			tq = TQLOW;
+			break;
+	}
+
+	if (curproc->qlev < 2 && curproc->qticks % ta == 0){
+		//check time allotment
+		curproc->qlev++;
+		curproc->qticks = 0;
+		return 1;
+	} else if (curproc->qticks > 0 && curproc->qticks % tq == 0)
+		// check time quantum
+		return 1;
+
+	// priority boost
+	if (mlfqticks > 0 && mlfqticks % PRIORITYBOOST == 0)
+		priority_boost();
+
+	return 0;
+}
