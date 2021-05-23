@@ -149,15 +149,12 @@ stride_dequeue(void) {
 	return p;
 }
 
-int mlfq_check_on_timer(struct proc *curproc){
+void mlfq_check_on_timer(){
+	struct proc *p = myproc()->master;
 	int ta = TAHIGH, tq = TQHIGH;
 
-	curproc->qticks++;
-	mlfqticks++;
-	mlfqsched.pass += mlfqsched.stride;
-
 	// set tq & ta
-	switch(curproc->qlev){
+	switch(p->qlev){
 		case 0:
 			tq = TQHIGH;
 			ta = TAHIGH;
@@ -171,18 +168,14 @@ int mlfq_check_on_timer(struct proc *curproc){
 			break;
 	}
 
-	if (curproc->qlev < 2 && curproc->qticks % ta == 0){
+	if (p->qlev < 2 && p->qticks % ta == 0){
 		//check time allotment
-		curproc->qlev++;
-		curproc->qticks = 0;
-		return 1;
-	} else if (curproc->qticks > 0 && curproc->qticks % tq == 0)
+		p->qlev++;
+		p->qticks = 0;
+		p->isexhausted = 1;
+	} else if (p->qticks > 0 && p->qticks % tq == 0)
 		// check time quantum
-		return 1;
-
-	// priority boost
-	if (mlfqticks > 0 && mlfqticks % PRIORITYBOOST == 0)
-		priority_boost();
-
-	return 0;
+		p->isexhausted = 1;
+	else
+		p->isexhausted = 0;
 }

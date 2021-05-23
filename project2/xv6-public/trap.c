@@ -16,6 +16,7 @@ uint ticks;
 
 extern struct scheduler mlfqsched;
 extern struct scheduler stridesched;
+extern uint mlfqticks;
 
 void
 tvinit(void)
@@ -107,11 +108,19 @@ trap(struct trapframe *tf)
   // If interrupts were on while locks held, would need to check nlock.
 	if(myproc() && myproc()->state == RUNNING &&
 			tf->trapno == T_IRQ0+IRQ_TIMER){
-		if (myproc()->tickets == 0){
+		if (myproc()->master->tickets == 0){
 			// mlfq process
-			if (myproc()->master->t_cnt > 0)
+			myproc()->master->qticks++;
+			mlfqticks++;
+			mlfqsched.pass += mlfqsched.stride;
+			mlfq_check_on_timer();
+
+			//if (myproc()->isthread)
+				//cprintf("trap.c thread tid: %d\n", myproc()->tid);
+
+			if (myproc()->master->t_cnt > 0) // if process have thread
 				yield();
-			else if (mlfq_check_on_timer(myproc()) != 0)
+			else if (myproc()->master->isexhausted) // if process exhaust own time
 				yield();
 /*
 			if (mlfq_check_on_timer(myproc()->master) != 0)
@@ -119,6 +128,10 @@ trap(struct trapframe *tf)
 			else if (myproc()->master->t_cnt > 0)
 				run_next_thread();
 */
+			// priority boost
+			if (mlfqticks > 0 && mlfqticks % PRIORITYBOOST == 0)
+				priority_boost();
+
 		} else { 
 			// stride process
 			myproc()->pass += myproc()->stride;

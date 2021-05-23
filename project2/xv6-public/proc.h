@@ -54,6 +54,7 @@ struct proc {
 	// MLFQ & Stride scheduler
 	int qlev;
 	int qticks;
+	int isexhausted;
 
 	int tickets;
 	float stride;

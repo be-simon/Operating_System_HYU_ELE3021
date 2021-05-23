@@ -80,8 +80,6 @@ found:
 	master->t_cnt++;
 
 	p->isthread = 1;
-	p->pgdir = master->pgdir;
-	p->master = master;
 
   return p;
 }
@@ -158,18 +156,13 @@ thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
 		return -1;
 	}
 	*thread = new->tid;
-
-	// file descriptor
-	for (i = 0; i <NOFILE; i++)
-		if (master->ofile[i])
-			new->ofile[i] = master->ofile[i];
-	new->cwd = master->cwd;
+	cprintf("thread_create: *thread: %d\n", *thread);
+	new->pgdir = master->pgdir;
 
 	// user stack allocation
 	if(t_allocustack(master, new) < 0){
 		return -1;
 	}
-
 	sp = new->sz;
 
 	ustack[0] = 0xffffffff;
@@ -180,13 +173,20 @@ thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
 		return -1;
 	}
 
+	new->master = master;
 	*new->tf = *master->tf;
+	//new->tf->eax = 0;
 	new->tf->eip = (uint)start_routine;
 	new->tf->esp = sp;
 
+	// file descriptor
+	for (i = 0; i <NOFILE; i++)
+		if (master->ofile[i])
+			new->ofile[i] = master->ofile[i];
+	new->cwd = master->cwd;
+
 	acquire(&ptable.lock);
 	new->state = RUNNABLE;
-	mlfq_enqueue(new);
 	release(&ptable.lock);
 	
 	return 0;
@@ -198,7 +198,8 @@ thread_join(thread_t thread, void **retval)
 {
 	struct proc *master = myproc();
 	struct proc *t_join = master->threads[thread];
-	
+
+	cprintf("t_join: %d\n", thread);	
 	acquire(&ptable.lock);
 	while (t_join->state != ZOMBIE)
 		sleep(master, &ptable.lock);
@@ -219,6 +220,7 @@ thread_join(thread_t thread, void **retval)
 	t_join->name[0] = 0;
 	t_join->state = UNUSED;
 
+	cprintf("t_join: %d finish\n", thread);	
 	release(&ptable.lock);	
 
 	return 0;
@@ -244,6 +246,8 @@ thread_exit(void *retval)
 	curproc->state = ZOMBIE;
 	//wakeup(master);
 	master->t_retval[curproc->tid] = retval;
+	//master->t_cnt--;
+	cprintf("thread_exit: isthread: %d, tid: %d\n", curproc->isthread, curproc->tid);
 
 	for (p = ptable.proc; p <&ptable.proc[NPROC]; p++) 
 		if (p->state == SLEEPING && p->chan == (void*)master){
@@ -277,8 +281,16 @@ get_next_thread(struct proc *master)
 		}
 		i = (i + 1) % (MAXTHREAD + 1);
 	}
-
+	if (i == master->t_lastsched){ 
+		if (i == MAXTHREAD && master->state == RUNNABLE)
+			next = master;
+		else if (master->threads[i]->state == RUNNABLE)
+			next = master->threads[i];
+	}
 	master->t_lastsched = i;
+
+	if (next == master && master->state != RUNNABLE)
+		next = 0;
 
 	return next;
 }
@@ -286,18 +298,47 @@ get_next_thread(struct proc *master)
 void
 run_next_thread()
 {
-	struct proc *curproc = myproc();
+	struct proc *p = myproc();
+	struct cpu *c = mycpu();
 	struct proc *next;
-	int intena;
+	next = get_next_thread(p->master);
+	if (next == p->master && p->master->state == RUNNABLE)
+		cprintf("curproc: %d, next is master\n", p->tid);
+//	cprintf("run_next_thread: isthread: %d, pid: %d, tid: %d, t_cnt: %d, nexttid: %d\n", p->isthread, p->pid, p->tid, p->master->t_cnt, next->tid);
 
-	next = get_next_thread(curproc->master);
+	if (!next) 
+		swtch(&(p->context), c->scheduler);
+	else {
 
-	acquire(&ptable.lock);
-	curproc->state = RUNNABLE;
-	intena = mycpu()->intena;
+		c->proc = next;	
 
-	swtch(&curproc->context, next->context);
+		if (next->kstack == 0)
+			panic("run thread: no kstack");
+		if (next->pgdir == 0)
+			panic("run thread: no pgdir");
 
-	mycpu()->intena = intena;
-	release(&ptable.lock);
+		pushcli();
+		mycpu()->gdt[SEG_TSS] = SEG16(STS_T32A, &mycpu()->ts, sizeof(mycpu()->ts)-1, 0);
+
+		mycpu()->gdt[SEG_TSS].s = 0;
+		mycpu()->ts.ss0 = SEG_KDATA << 3;
+		mycpu()->ts.esp0 = (uint)next->kstack + KSTACKSIZE;
+
+		mycpu()->ts.iomb = (ushort) 0xFFFF;
+		ltr(SEG_TSS << 3);
+		popcli();
+
+
+		//	acquire(&ptable.lock);
+		//	curproc->state = RUNNABLE;
+		//	intena = mycpu()->intena;
+		//	switchuvm(next);
+		next->state = RUNNING;
+		swtch(&(p->context), next->context);
+		//	switchkvm();
+
+	}
+
+//	mycpu()->intena = intena;
+//	release(&ptable.lock);
 }

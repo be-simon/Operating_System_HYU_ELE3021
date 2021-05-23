@@ -118,6 +118,7 @@ found:
 
 	p->qlev = 0;
 	p->qticks = 0;
+	p->isexhausted = 0;
 	p->tickets = 0;
 	p->pass = 0;
 
@@ -127,7 +128,7 @@ found:
 		p->t_retval[i] = 0;
 	}	
 	p->master = p;
-	p->t_lastsched = MAXTHREAD - 1;
+	p->t_lastsched = MAXTHREAD;
 
   return p;
 }
@@ -249,6 +250,7 @@ exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
+	//int i;
 
   if(curproc == initproc)
     panic("init exiting");
@@ -267,7 +269,24 @@ exit(void)
   curproc->cwd = 0;
 
   acquire(&ptable.lock);
-
+/*
+	//if thread call exit--------
+	if (curproc->isthread) {
+		curproc = curproc->master;
+		for (i = 0; i < MAXTHREAD; i++) {
+			if (curproc->threads[i]) {
+				curproc->threads[i]->state = UNUSED;
+				if(t_deallocustack(curproc->threads[i]) < 0){
+					release(&ptable.lock);
+					panic("exit thread dealloc stack fail");
+				}
+			}
+			curproc->threads[i] = 0;
+		}
+		curproc->t_cnt = 0;
+	}
+	//------------------------
+*/
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
@@ -354,12 +373,21 @@ scheduler(void)
 
 		if (mlfqsched.pass <= stridesched.pass || stridesched.count == 0){
 			p = mlfq_dequeue();
-			if (!p || p->state != RUNNABLE || p->tickets > 0) {
-				if (p->state == SLEEPING) {
-					p->qlev = 3;
-					p->qticks = 0;
-					mlfq_enqueue(p);
+
+			if (!p || p->tickets > 0) {
+				release(&ptable.lock);
+				continue;
+			} else if (p->state == SLEEPING) {
+				p->qlev = 3;
+				p->qticks = 0;
+				mlfq_enqueue(p);
+				if (p->t_cnt > 0)
+					p = get_next_thread(p);	
+				else {
+					release(&ptable.lock);
+					continue;
 				}
+			} else if (p->state != RUNNABLE) {
 				release(&ptable.lock);
 				continue;
 			}
@@ -438,8 +466,17 @@ sched(void)
   if(readeflags()&FL_IF)
     panic("sched interruptible");
   intena = mycpu()->intena;
-	swtch(&p->context, mycpu()->scheduler);
-  mycpu()->intena = intena;
+
+	if (p->master->isexhausted)
+		swtch(&(p->context), mycpu()->scheduler);
+	else if (p->master->t_cnt > 0) 
+		run_next_thread();
+	else
+		swtch(&(p->context), mycpu()->scheduler);
+  
+//	swtch(&(p->context), mycpu()->scheduler);
+
+	mycpu()->intena = intena;
 }
 
 // Give up the CPU for one scheduling round.

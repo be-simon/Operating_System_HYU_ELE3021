@@ -193,14 +193,15 @@ int				mlfq_enqueue(struct proc*);
 struct proc*	mlfq_dequeue(void);
 int				stride_enqueue(struct proc*);
 struct proc* 	stride_dequeue(void);
-int				mlfq_check_on_timer(struct proc *curproc);
+void			mlfq_check_on_timer();
 
 // thread.c
+int				t_deallocustack(struct proc* thread);
 int 			thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg);
 void			thread_exit(void *retval);
 int 			thread_join(thread_t thread, void **retval);
 struct proc *	get_next_thread(struct proc *master);
-void			run_next_thread(void);
+void			run_next_thread();
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

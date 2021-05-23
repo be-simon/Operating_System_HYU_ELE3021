@@ -20,15 +20,15 @@ volatile int gcnt;
 int gpipe[2];
 
 int (*testfunc[NTEST])(void) = {
-  racingtest,
   basictest,
+  racingtest,
   jointest1,
   jointest2,
   stresstest,
 };
 char *testname[NTEST] = {
-  "racingtest",
   "basictest",
+  "racingtest",
   "jointest1",
   "jointest2",
   "stresstest",
