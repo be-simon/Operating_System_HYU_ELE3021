@@ -123,12 +123,13 @@ found:
 	p->pass = 0;
 
 	p->t_cnt = 0;
-	for (i = 0; i < MAXTHREAD; i++) {
+	for (i = 1; i <= MAXTHREAD; i++) {
 		p->threads[i] = 0;
 		p->t_retval[i] = 0;
 	}	
-	p->master = p;
-	p->t_lastsched = MAXTHREAD;
+	p->threads[0] = p;
+	p->master = 0;
+	p->t_lastsched = 0;
 
   return p;
 }

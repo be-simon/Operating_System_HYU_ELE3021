@@ -20,15 +20,15 @@ volatile int gcnt;
 int gpipe[2];
 
 int (*testfunc[NTEST])(void) = {
-  basictest,
   racingtest,
+  basictest,
   jointest1,
   jointest2,
   stresstest,
 };
 char *testname[NTEST] = {
-  "basictest",
   "racingtest",
+  "basictest",
   "jointest1",
   "jointest2",
   "stresstest",
@@ -40,7 +40,7 @@ main(int argc, char *argv[])
   int i;
   int ret;
   int pid;
-  int start = 0;
+  int start = 3;
   int end = NTEST-1;
   if (argc >= 2)
     start = atoi(argv[1]);

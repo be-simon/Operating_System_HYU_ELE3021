@@ -61,9 +61,9 @@ struct proc {
 	float pass;
 
 	// for master thread
-	struct proc *threads[MAXTHREAD];	// master's threads
+	struct proc *threads[MAXTHREAD + 1];	// master's threads
 	int t_cnt;							// number of threads
-	void *t_retval[MAXTHREAD];			// return value of threads
+	void *t_retval[MAXTHREAD + 1];			// return value of threads
 	uint freeupages[MAXTHREAD];			// sz value of threads that is free
 	int t_lastsched;					// last scheduled thread
 
