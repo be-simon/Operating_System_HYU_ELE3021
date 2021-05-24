@@ -118,16 +118,11 @@ trap(struct trapframe *tf)
 			//if (myproc()->isthread)
 				//cprintf("trap.c thread tid: %d\n", myproc()->tid);
 
-			if (myproc()->master->t_cnt > 0) // if process have thread
+			//if (myproc()->master->t_cnt > 0) // if process have thread
+			if (myproc()->isthread)
 				yield();
-			else if (myproc()->master->isexhausted) // if process exhaust own time
+			else if (myproc()->isexhausted) // if process exhaust own time
 				yield();
-/*
-			if (mlfq_check_on_timer(myproc()->master) != 0)
-				yield();
-			else if (myproc()->master->t_cnt > 0)
-				run_next_thread();
-*/
 			// priority boost
 			if (mlfqticks > 0 && mlfqticks % PRIORITYBOOST == 0)
 				priority_boost();

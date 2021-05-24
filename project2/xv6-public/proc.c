@@ -128,8 +128,9 @@ found:
 		p->t_retval[i] = 0;
 	}	
 	p->threads[0] = p;
-	p->master = 0;
+	p->master = p;
 	p->t_lastsched = 0;
+	p->isthread = 0;
 
   return p;
 }
@@ -382,8 +383,13 @@ scheduler(void)
 				p->qlev = 3;
 				p->qticks = 0;
 				mlfq_enqueue(p);
-				if (p->t_cnt > 0)
+				if (p->isthread){
 					p = get_next_thread(p);	
+					if (!p) {
+						release(&ptable.lock);
+						continue;
+					}
+				}		
 				else {
 					release(&ptable.lock);
 					continue;
@@ -470,7 +476,7 @@ sched(void)
 
 	if (p->master->isexhausted)
 		swtch(&(p->context), mycpu()->scheduler);
-	else if (p->master->t_cnt > 0) 
+	else if (p->isthread) 
 		run_next_thread();
 	else
 		swtch(&(p->context), mycpu()->scheduler);

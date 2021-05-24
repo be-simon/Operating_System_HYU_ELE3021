@@ -174,6 +174,7 @@ thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
 	}
 
 	new->master = master;
+	master->isthread = 1;
 	*new->tf = *master->tf;
 	//new->tf->eax = 0;
 	new->tf->eip = (uint)start_routine;
@@ -213,6 +214,9 @@ thread_join(thread_t thread, void **retval)
 	*retval = master->t_retval[t_join->tid];
 	master->threads[t_join->tid] = 0;
 	master->t_cnt--;
+	if (master->t_cnt == 0)
+		master->isthread = 0;
+
 	t_join->kstack = 0;
 	t_join->master = 0;
 	t_join->tid = 0;
@@ -220,7 +224,7 @@ thread_join(thread_t thread, void **retval)
 	t_join->name[0] = 0;
 	t_join->state = UNUSED;
 
-	//cprintf("t_join: %d finish\n", thread);	
+//	cprintf("t_join: %d finish\n", thread);	
 	release(&ptable.lock);	
 
 	return 0;
@@ -243,18 +247,16 @@ thread_exit(void *retval)
 	curproc->cwd = 0;
 
 	acquire(&ptable.lock);
-	curproc->state = ZOMBIE;
-	//wakeup(master);
 	master->t_retval[curproc->tid] = retval;
+	curproc->state = ZOMBIE;
 	//master->t_cnt--;
-	cprintf("thread_exit: isthread: %d, tid: %d\n", curproc->isthread, curproc->tid);
+	//cprintf("thread_exit: isthread: %d, tid: %d\n", curproc->isthread, curproc->tid);
 
 	for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) 
 		if (p->state == SLEEPING && p->chan == (void*)master){
 			p->state = RUNNABLE;	
 			p->qlev = 0;
 		}
-
 	sched();
 	panic("ZOMBIE thread exit");
 }
@@ -290,20 +292,19 @@ get_next_thread(struct proc *master)
 void
 run_next_thread()
 {
-	pushcli();
 	struct proc *p = myproc();
 	struct cpu *c = mycpu();
 	struct proc *next;
+	pushcli();
 	next = get_next_thread(p->master);
-	//if (next == p->master && p->master->state == RUNNABLE)
-	//	cprintf("curproc: %d, next is master\n", p->tid);
-//	cprintf("run_next_thread: isthread: %d, pid: %d, tid: %d, t_cnt: %d, nexttid: %d\n", p->isthread, p->pid, p->tid, p->master->t_cnt, next->tid);
 
-	if (!next){ 
+	//if (!next || next == p){ 
+	if (!next){
 		popcli();
 		swtch(&(p->context), c->scheduler);		
+	} else if (next == p) {
+		popcli();
 	} else {
-
 		c->proc = next;	
 
 		if (next->kstack == 0)
