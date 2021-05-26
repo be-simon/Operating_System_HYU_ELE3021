@@ -431,13 +431,13 @@ scheduler(void)
 						release(&ptable.lock);
 						continue;
 					}
-				}		
-				else {
+				} else {
 					release(&ptable.lock);
 					continue;
 				}
 			} else if (p->state != RUNNABLE) {
 				release(&ptable.lock);
+				continue;
 			}
 
 			c->proc = p;

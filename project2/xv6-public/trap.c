@@ -127,11 +127,13 @@ trap(struct trapframe *tf)
 		} else { 
 			// stride process
 			myproc()->pass += myproc()->stride;
-			myproc()->master->qticks++;
 			stridesched.pass += stridesched.stride;
-			check_on_timer();
 
-			if (myproc()->isexhausted) // if process exhaust own time
+			if (myproc()->isthread) {
+				myproc()->master->qticks++;
+				check_on_timer();
+				yield();
+			} else
 				yield();
 		}
 	}
