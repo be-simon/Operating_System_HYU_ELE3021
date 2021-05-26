@@ -113,16 +113,13 @@ trap(struct trapframe *tf)
 			myproc()->master->qticks++;
 			mlfqticks++;
 			mlfqsched.pass += mlfqsched.stride;
-			mlfq_check_on_timer();
+			check_on_timer();
 
-			//if (myproc()->isthread)
-				//cprintf("trap.c thread tid: %d\n", myproc()->tid);
-
-			//if (myproc()->master->t_cnt > 0) // if process have thread
 			if (myproc()->isthread)
 				yield();
 			else if (myproc()->isexhausted) // if process exhaust own time
 				yield();
+
 			// priority boost
 			if (mlfqticks > 0 && mlfqticks % PRIORITYBOOST == 0)
 				priority_boost();
@@ -130,8 +127,12 @@ trap(struct trapframe *tf)
 		} else { 
 			// stride process
 			myproc()->pass += myproc()->stride;
+			myproc()->master->qticks++;
 			stridesched.pass += stridesched.stride;
-			yield();
+			check_on_timer();
+
+			if (myproc()->isexhausted) // if process exhaust own time
+				yield();
 		}
 	}
   // Check if the process has been killed since we yielded

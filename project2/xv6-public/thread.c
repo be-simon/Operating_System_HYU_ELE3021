@@ -122,7 +122,6 @@ t_deallocustack(struct proc *thread)
 {
 	uint sz;
 	int i;
-
 	acquire(&vmlock);
 	kfree(thread->kstack);
 
@@ -145,7 +144,7 @@ t_deallocustack(struct proc *thread)
 int 
 thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
 {
-	struct proc *master = myproc();
+	struct proc *master = myproc()->master;
 	struct proc *new;
 	uint sp, ustack[2];
 	int i;
@@ -156,7 +155,6 @@ thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
 		return -1;
 	}
 	*thread = new->tid;
-	//cprintf("thread_create: *thread: %d\n", *thread);
 	new->pgdir = master->pgdir;
 
 	// user stack allocation
@@ -174,7 +172,6 @@ thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
 	}
 
 	new->master = master;
-	master->isthread = 1;
 	*new->tf = *master->tf;
 	//new->tf->eax = 0;
 	new->tf->eip = (uint)start_routine;
@@ -186,6 +183,7 @@ thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
 			new->ofile[i] = master->ofile[i];
 	new->cwd = master->cwd;
 
+	master->isthread = 1;
 	acquire(&ptable.lock);
 	new->state = RUNNABLE;
 	release(&ptable.lock);
@@ -200,7 +198,6 @@ thread_join(thread_t thread, void **retval)
 	struct proc *master = myproc();
 	struct proc *t_join = master->threads[thread];
 
-	//cprintf("t_join: %d\n", thread);	
 	acquire(&ptable.lock);
 	while (t_join->state != ZOMBIE)
 		sleep(master, &ptable.lock);
@@ -213,18 +210,11 @@ thread_join(thread_t thread, void **retval)
 	//retrieve resource
 	*retval = master->t_retval[t_join->tid];
 	master->threads[t_join->tid] = 0;
-	master->t_cnt--;
 	if (master->t_cnt == 0)
 		master->isthread = 0;
 
-	t_join->kstack = 0;
-	t_join->master = 0;
-	t_join->tid = 0;
-	t_join->killed = 0;
-	t_join->name[0] = 0;
 	t_join->state = UNUSED;
 
-//	cprintf("t_join: %d finish\n", thread);	
 	release(&ptable.lock);	
 
 	return 0;
@@ -247,16 +237,16 @@ thread_exit(void *retval)
 	curproc->cwd = 0;
 
 	acquire(&ptable.lock);
-	master->t_retval[curproc->tid] = retval;
-	curproc->state = ZOMBIE;
-	//master->t_cnt--;
-	//cprintf("thread_exit: isthread: %d, tid: %d\n", curproc->isthread, curproc->tid);
 
 	for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) 
 		if (p->state == SLEEPING && p->chan == (void*)master){
 			p->state = RUNNABLE;	
 			p->qlev = 0;
 		}
+	master->t_retval[curproc->tid] = retval;
+	curproc->state = ZOMBIE;
+	master->t_cnt--;
+
 	sched();
 	panic("ZOMBIE thread exit");
 }
@@ -298,7 +288,6 @@ run_next_thread()
 	pushcli();
 	next = get_next_thread(p->master);
 
-	//if (!next || next == p){ 
 	if (!next){
 		popcli();
 		swtch(&(p->context), c->scheduler);		

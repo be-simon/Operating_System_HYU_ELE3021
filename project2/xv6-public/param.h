@@ -23,6 +23,7 @@
 // Stride
 #define TOTALTICKETS	10000
 #define MAXSHARE			80
+#define TQSTRIDE		5
 
 // Thread
 #define MAXTHREAD			10

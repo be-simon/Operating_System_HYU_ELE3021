@@ -11,20 +11,29 @@ uint mlfqticks = 0;
 int
 set_cpu_share(int share){
 	int tickets = TOTALTICKETS * share / 100;
+	// check max cpu share
 	if (stridesched.tickets + tickets > TOTALTICKETS * MAXSHARE / 100)
 		return -1;
 
+	// set tickets of scheduler
 	mlfqsched.tickets -= tickets;
 	stridesched.tickets += tickets;
 
 	if (stridesched.stride == 0)
 		stridesched.pass = mlfqsched.pass;
 
+	//set stride of scheduler
 	mlfqsched.stride = TOTALTICKETS / mlfqsched.tickets;
 	stridesched.stride = TOTALTICKETS / stridesched.tickets;
 
+	// set tickets & stride of current process
 	myproc()->tickets = tickets;
 	myproc()->stride = stridesched.tickets / tickets;
+	myproc()->qticks = 0;
+	myproc()->qlev = 0;
+
+	// if there is stride process already, 
+	// set current process's stride with min_stride
 	if (stridesched.count > 0)
 		myproc()->pass = stridesched.heap[1]->pass;
 	else
@@ -149,33 +158,42 @@ stride_dequeue(void) {
 	return p;
 }
 
-void mlfq_check_on_timer(){
+void check_on_timer(){
 	struct proc *p = myproc()->master;
 	int ta = TAHIGH, tq = TQHIGH;
 
-	// set tq & ta
-	switch(p->qlev){
-		case 0:
-			tq = TQHIGH;
-			ta = TAHIGH;
-			break;
-		case 1:
-			tq = TQMIDDLE;
-			ta = TAMIDDLE;
-			break;
-		case 2:
-			tq = TQLOW;
-			break;
+	if (p->tickets == 0){
+		// set tq & ta
+		switch(p->qlev){
+			case 0:
+				tq = TQHIGH;
+				ta = TAHIGH;
+				break;
+			case 1:
+				tq = TQMIDDLE;
+				ta = TAMIDDLE;
+				break;
+			case 2:
+				tq = TQLOW;
+				break;
+		}
+
+		if (p->qlev < 2 && p->qticks % ta == 0){
+			//check time allotment
+			p->qlev++;
+			p->qticks = 0;
+			p->isexhausted = 1;
+		} else if (p->qticks > 0 && p->qticks % tq == 0)
+			// check time quantum
+			p->isexhausted = 1;
+		else
+			p->isexhausted = 0;
+	} else { //stride process
+		tq = TQSTRIDE;
+		if (p->qticks > 0 && p->qticks % tq == 0) 
+			p->isexhausted = 1;
+		else 
+			p->isexhausted = 0;
 	}
 
-	if (p->qlev < 2 && p->qticks % ta == 0){
-		//check time allotment
-		p->qlev++;
-		p->qticks = 0;
-		p->isexhausted = 1;
-	} else if (p->qticks > 0 && p->qticks % tq == 0)
-		// check time quantum
-		p->isexhausted = 1;
-	else
-		p->isexhausted = 0;
 }

@@ -252,7 +252,10 @@ exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
-	//int i;
+	int i;
+
+	if (curproc->isthread)
+		curproc = curproc->master;
 
   if(curproc == initproc)
     panic("init exiting");
@@ -271,24 +274,24 @@ exit(void)
   curproc->cwd = 0;
 
   acquire(&ptable.lock);
-/*
 	//if thread call exit--------
 	if (curproc->isthread) {
-		curproc = curproc->master;
-		for (i = 0; i < MAXTHREAD; i++) {
+		for (i = 1; i <= MAXTHREAD; i++) {
 			if (curproc->threads[i]) {
-				curproc->threads[i]->state = UNUSED;
 				if(t_deallocustack(curproc->threads[i]) < 0){
 					release(&ptable.lock);
 					panic("exit thread dealloc stack fail");
 				}
+				curproc->threads[i]->state = UNUSED;
+				curproc->threads[i]->kstack = 0;
+				curproc->threads[i]->killed = 0;
+				curproc->threads[i] = 0;
 			}
-			curproc->threads[i] = 0;
 		}
 		curproc->t_cnt = 0;
 	}
 	//------------------------
-*/
+
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
@@ -319,6 +322,7 @@ wait(void)
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
+    havekids = 0;
     havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->parent != curproc)
@@ -415,13 +419,25 @@ scheduler(void)
 
 		} else {
 			p = stride_dequeue();
-			if (!p || p->state != RUNNABLE) {
-				if (p->state == SLEEPING) {
-					p->pass = stridesched.heap[stridesched.count]->pass;
-					stride_enqueue(p);
-				}
+			if (!p || p->tickets == 0) {
 				release(&ptable.lock);
 				continue;
+			} else if (p->state == SLEEPING) {
+				p->pass = stridesched.heap[stridesched.count]->pass;
+				stride_enqueue(p);
+				if (p->isthread){
+					p = get_next_thread(p);	
+					if (!p) {
+						release(&ptable.lock);
+						continue;
+					}
+				}		
+				else {
+					release(&ptable.lock);
+					continue;
+				}
+			} else if (p->state != RUNNABLE) {
+				release(&ptable.lock);
 			}
 
 			c->proc = p;
@@ -474,8 +490,10 @@ sched(void)
     panic("sched interruptible");
   intena = mycpu()->intena;
 
-	if (p->master->isexhausted)
+	if (p->master->isexhausted){
+		p->master->isexhausted = 0;
 		swtch(&(p->context), mycpu()->scheduler);
+	}
 	else if (p->isthread) 
 		run_next_thread();
 	else
@@ -587,11 +605,22 @@ int
 kill(int pid)
 {
   struct proc *p;
+	struct proc *master;
+	int i;
 
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
       p->killed = 1;
+		// kill all LWP
+		if(p->isthread) {
+			master = p->master;
+			for (i = 1; i <= MAXTHREAD; i++) {
+				if (master->threads[i]) {
+					master->threads[i]->state = ZOMBIE;
+				}
+			}
+		}
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
         p->state = RUNNABLE;
@@ -624,18 +653,19 @@ procdump(void)
   uint pc[10];
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->state == UNUSED)
-      continue;
-    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
-      state = states[p->state];
-    else
-      state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
-    if(p->state == SLEEPING){
-      getcallerpcs((uint*)p->context->ebp+2, pc);
-      for(i=0; i<10 && pc[i] != 0; i++)
-        cprintf(" %p", pc[i]);
-    }
-    cprintf("\n");
+	  if(p->state == UNUSED)
+		  continue;
+	  if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+		  state = states[p->state];
+	  else
+		  state = "???";
+	  cprintf("%d %s %s", p->pid, state, p->name);
+	  if(p->state == SLEEPING){
+		  getcallerpcs((uint*)p->context->ebp+2, pc);
+		  for(i=0; i<10 && pc[i] != 0; i++)
+			  cprintf(" %p", pc[i]);
+	  }
+	  cprintf("\n");
   }
 }
+

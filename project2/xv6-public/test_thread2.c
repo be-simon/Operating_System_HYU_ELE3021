@@ -83,7 +83,7 @@ main(int argc, char *argv[])
   int i;
   int ret;
   int pid;
-  int start = 0;
+  int start = 13;
   int end = NTEST-1;
   if (argc >= 2)
     start = atoi(argv[1]);
@@ -328,7 +328,7 @@ int
 exittest1(void)
 {
   thread_t threads[NUM_THREAD];
-  int i;
+ int i;
   
   for (i = 0; i < NUM_THREAD; i++){
     if (thread_create(&threads[i], exitthreadmain, (void*)1) != 0){

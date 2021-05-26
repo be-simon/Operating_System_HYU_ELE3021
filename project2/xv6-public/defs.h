@@ -193,7 +193,7 @@ int				mlfq_enqueue(struct proc*);
 struct proc*	mlfq_dequeue(void);
 int				stride_enqueue(struct proc*);
 struct proc* 	stride_dequeue(void);
-void			mlfq_check_on_timer();
+void			check_on_timer();
 
 // thread.c
 int				t_deallocustack(struct proc* thread);
