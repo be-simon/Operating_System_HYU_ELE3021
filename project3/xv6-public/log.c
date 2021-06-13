@@ -248,6 +248,8 @@ sync(void)
 	log.committing = 0;
 	wakeup(&log);
 	release(&log.lock);
+
+	return 0;
 }
 
 int 

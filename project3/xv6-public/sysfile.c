@@ -91,6 +91,30 @@ sys_write(void)
 }
 
 int
+sys_pread(void)
+{
+  struct file *f;
+  int n, off;
+  char *p;
+
+  if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argptr(1, &p, n) < 0 || argint(3, &off) < 0)
+    return -1;
+  return filepread(f, p, n, off);
+}
+
+int
+sys_pwrite(void)
+{
+  struct file *f;
+  int n, off;
+  char *p;
+
+  if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argptr(1, &p, n) < 0 || argint(3, &off) < 0)
+	return -1;
+  return filepread(f, p, n, off);
+}
+
+int
 sys_close(void)
 {
   int fd;
@@ -441,4 +465,16 @@ sys_pipe(void)
   fd[0] = fd0;
   fd[1] = fd1;
   return 0;
+}
+
+int
+sys_sync(void)
+{
+	return sync();
+}
+
+int
+sys_get_log_num(void)
+{
+	return get_log_num();
 }

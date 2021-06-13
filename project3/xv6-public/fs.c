@@ -501,9 +501,9 @@ itrunc(struct inode *ip)
 
 		for (i = 0; i < NINDIRECT; i++) {
 			if(a[i]) {
-				dbp = bread(ip-dev, a[i]);
+				dbp = bread(ip->dev, a[i]);
 				da = (uint*)dbp->data;
-				for (j = 0; j < NINDIRECT; j++) {
+				for (j = 0; j < NINDIRECT; j++)
 					if(da[j])
 						bfree(ip->dev, da[j]);
 				brelse(dbp);
@@ -543,7 +543,7 @@ itrunc(struct inode *ip)
 		}
 		
 		brelse(bp);
-		bfree(ip->dev, ip->addrs[NDIRECT+2];
+		bfree(ip->dev, ip->addrs[NDIRECT+2]);
 		ip->addrs[NDIRECT+2] = 0;
 	}
 
