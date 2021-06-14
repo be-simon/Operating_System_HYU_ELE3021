@@ -439,7 +439,7 @@ bmap(struct inode *ip, uint bn)
 		}
 		brelse(bp);
 	
-		bn %= NINDIRECT;
+		bn %= NDINDIRECT;
 		tbn = bn / NINDIRECT;
 
 		bp = bread(ip->dev, addr);
