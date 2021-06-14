@@ -151,7 +151,7 @@ end_op(void)
   log.outstanding -= 1;
   if(log.committing)
     panic("log.committing");
-  if(log.outstanding == 0){
+  if(log.outstanding == 0 && log.lh.n + MAXOPBLOCKS > LOGSIZE){
     do_commit = 1;
     log.committing = 1;
   } else {
