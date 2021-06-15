@@ -111,7 +111,7 @@ sys_pwrite(void)
 
   if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argptr(1, &p, n) < 0 || argint(3, &off) < 0)
 	return -1;
-  return filepread(f, p, n, off);
+  return filepwrite(f, p, n, off);
 }
 
 int
